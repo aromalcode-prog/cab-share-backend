@@ -6,6 +6,7 @@ import (
 	"github.com/aromalcode-prog/cab-share-backend/internal/dto"
 	"github.com/aromalcode-prog/cab-share-backend/internal/models"
 	"github.com/aromalcode-prog/cab-share-backend/internal/repositories"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrEmailAlreadyExists = errors.New("email already exists")
@@ -33,16 +34,28 @@ func (s *userService) Register(req dto.RegisterRequest) error {
 	if !errors.Is(err, repositories.ErrUserNotFound) {
 		return err
 	}
-
+	hashedPassword, _ := hashPassword(req.Password)
 	user := &models.User{
 		Email:        req.Email,
 		Name:         req.Name,
 		Phone:        req.Phone,
-		PasswordHash: req.Password, //store after hashing
+		PasswordHash: hashedPassword,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
 		return err
 	}
 	return nil
+}
+
+func hashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword(
+		[]byte(password),
+		bcrypt.DefaultCost,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return string(hashedPassword), nil
 }
