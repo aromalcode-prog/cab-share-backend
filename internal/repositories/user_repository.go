@@ -1,9 +1,13 @@
 package repositories
 
 import (
+	"errors"
+
 	"github.com/aromalcode-prog/cab-share-backend/internal/models"
 	"gorm.io/gorm"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository interface {
 	Create(user *models.User) error
@@ -28,6 +32,9 @@ func (r *userRepository) Create(user *models.User) error {
 func (r *userRepository) FindByEmail(email string) (*models.User, error) {
 	var foundUser models.User
 	result := r.db.Where("email = ?", email).First(&foundUser)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
 	if result.Error != nil {
 		return nil, result.Error
 	}
