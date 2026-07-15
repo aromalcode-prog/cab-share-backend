@@ -1,8 +1,8 @@
 package dto
 
 type RegisterRequest struct {
-	Name     string
-	Email    string
-	Phone    string
-	Password string
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }

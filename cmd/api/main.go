@@ -24,7 +24,7 @@ func main() {
 		panic(err)
 	}
 	// database.Execute(db)
-	router := router.SetupRouter()
+	router := router.SetupRouter(db)
 	err = router.Run(":" + cfg.Port)
 	if err != nil {
 		panic(err)
