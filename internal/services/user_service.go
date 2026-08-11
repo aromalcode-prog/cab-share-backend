@@ -3,29 +3,34 @@ package services
 import (
 	"errors"
 
-	"github.com/aromalcode-prog/cab-share-backend/internal/dto"
+	"github.com/aromalcode-prog/cab-share-backend/internal/auth"
+	"github.com/aromalcode-prog/cab-share-backend/internal/dto/request"
+
 	"github.com/aromalcode-prog/cab-share-backend/internal/models"
 	"github.com/aromalcode-prog/cab-share-backend/internal/repositories"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrEmailAlreadyExists = errors.New("email already exists")
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type UserService interface {
-	Register(req dto.RegisterRequest) error
+	Register(req request.RegisterRequestDTO) error
+	Login(req request.LoginRequestDTO) (string, error)
 }
 
 type userService struct {
-	userRepo repositories.UserRepository
+	userRepo   repositories.UserRepository
+	jwtManager *auth.JWTManager
 }
 
-func NewUserService(userRepo repositories.UserRepository) UserService {
+func NewUserService(userRepo repositories.UserRepository, jwtManager *auth.JWTManager) UserService {
 	return &userService{
-		userRepo: userRepo,
+		userRepo:   userRepo,
+		jwtManager: jwtManager,
 	}
 }
 
-func (s *userService) Register(req dto.RegisterRequest) error {
+func (s *userService) Register(req request.RegisterRequestDTO) error {
 	_, err := s.userRepo.FindByEmail(req.Email)
 	if err == nil {
 		return ErrEmailAlreadyExists
@@ -34,7 +39,7 @@ func (s *userService) Register(req dto.RegisterRequest) error {
 	if !errors.Is(err, repositories.ErrUserNotFound) {
 		return err
 	}
-	hashedPassword, _ := hashPassword(req.Password)
+	hashedPassword, _ := auth.HashPassword(req.Password)
 	user := &models.User{
 		Email:        req.Email,
 		Name:         req.Name,
@@ -48,14 +53,17 @@ func (s *userService) Register(req dto.RegisterRequest) error {
 	return nil
 }
 
-func hashPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword(
-		[]byte(password),
-		bcrypt.DefaultCost,
-	)
+func (s *userService) Login(req request.LoginRequestDTO) (string, error) {
+	user, err := s.userRepo.FindByEmail(req.Email)
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return "", ErrInvalidCredentials
+	}
 	if err != nil {
 		return "", err
 	}
-
-	return string(hashedPassword), nil
+	err = auth.ComparePassword(user.PasswordHash, req.Password)
+	if err != nil {
+		return "", ErrInvalidCredentials
+	}
+	return s.jwtManager.GenerateJWT(user.ID)
 }
