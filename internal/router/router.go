@@ -12,11 +12,13 @@ import (
 
 func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
-	router.GET("/", handlers.HomeHandler)
-	router.GET("/health", handlers.HealthHandler)
 
 	userRepo := repositories.NewUserRepository(db)
 	jwtManager := auth.NewJWTManager(cfg)
+	// authMiddleware := middleware.NewAuthMiddleware(jwtManager)
+
+	router.GET("/", handlers.HomeHandler)
+	router.GET("/health", handlers.HealthHandler)
 	userService := services.NewUserService(userRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userService)
 	router.POST("/register", userHandler.Register)
