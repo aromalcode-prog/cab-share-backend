@@ -19,7 +19,10 @@ func main() {
 	}
 	fmt.Println("Connected to database")
 
-	err = db.AutoMigrate(&models.User{})
+	err = db.AutoMigrate(
+		&models.User{},
+		&models.Ride{},
+	)
 	if err != nil {
 		panic(err)
 	}

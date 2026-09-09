@@ -4,6 +4,7 @@ import (
 	"github.com/aromalcode-prog/cab-share-backend/config"
 	"github.com/aromalcode-prog/cab-share-backend/internal/auth"
 	"github.com/aromalcode-prog/cab-share-backend/internal/handlers"
+	"github.com/aromalcode-prog/cab-share-backend/internal/middleware"
 	"github.com/aromalcode-prog/cab-share-backend/internal/repositories"
 	"github.com/aromalcode-prog/cab-share-backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -13,16 +14,18 @@ import (
 func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
 
-	userRepo := repositories.NewUserRepository(db)
-	jwtManager := auth.NewJWTManager(cfg)
-	// authMiddleware := middleware.NewAuthMiddleware(jwtManager)
-
 	router.GET("/", handlers.HomeHandler)
 	router.GET("/health", handlers.HealthHandler)
+	jwtManager := auth.NewJWTManager(cfg)
+	userRepo := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userService)
 	router.POST("/register", userHandler.Register)
 	router.POST("/login", userHandler.Login)
-
+	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
+	rideRepo := repositories.NewRideRepository(db)
+	rideService := services.NewRideService(rideRepo)
+	rideHandler := handlers.NewRideHandler(rideService)
+	router.POST("/rides", authMiddleware.Authenticate(), rideHandler.CreateRide)
 	return router
 }

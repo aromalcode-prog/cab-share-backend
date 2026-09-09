@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/auth"
+	"github.com/aromalcode-prog/cab-share-backend/internal/constants"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,7 +42,7 @@ func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
 			})
 			return
 		}
-		c.Set("userID", claims.UserID)
+		c.Set(constants.UserIDKey, claims.UserID)
 		c.Next()
 	}
 }
