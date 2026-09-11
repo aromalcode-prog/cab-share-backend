@@ -16,17 +16,29 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	router.GET("/", handlers.HomeHandler)
 	router.GET("/health", handlers.HealthHandler)
+
 	jwtManager := auth.NewJWTManager(cfg)
+
 	userRepo := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepo, jwtManager)
 	userHandler := handlers.NewUserHandler(userService)
 	router.POST("/register", userHandler.Register)
 	router.POST("/login", userHandler.Login)
+	router.GET("/getusers", userHandler.GetAllUsers) // only for testing purpose
+
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
+
 	rideRepo := repositories.NewRideRepository(db)
 	rideService := services.NewRideService(rideRepo)
 	rideHandler := handlers.NewRideHandler(rideService)
 	router.GET("/getrides", rideHandler.GetAvailableRides)
 	router.POST("/rides", authMiddleware.Authenticate(), rideHandler.CreateRide)
+
+	rideBookingRepository := repositories.NewRideBookingRepository(db)
+	rideBookingService := services.NewRideBookingService(db, rideRepo, rideBookingRepository)
+	rideBookingHandler := handlers.NewRideBookingHandler(rideBookingService)
+	router.GET("/bookings", authMiddleware.Authenticate(), rideBookingHandler.GetMyBookings)
+	router.POST("/rides/:rideID/book", authMiddleware.Authenticate(), rideBookingHandler.BookRide)
+
 	return router
 }

@@ -12,6 +12,7 @@ var ErrUserNotFound = errors.New("user not found")
 type UserRepository interface {
 	Create(user *models.User) error
 	FindByEmail(email string) (*models.User, error)
+	GetAllUsers() ([]models.User, error)
 }
 
 type userRepository struct {
@@ -39,4 +40,10 @@ func (r *userRepository) FindByEmail(email string) (*models.User, error) {
 		return nil, result.Error
 	}
 	return &foundUser, nil
+}
+
+func (r *userRepository) GetAllUsers() ([]models.User, error) {
+	var users []models.User
+	result := r.db.Find(&users)
+	return users, result.Error
 }

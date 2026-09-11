@@ -16,6 +16,7 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 type UserService interface {
 	Register(req request.RegisterRequestDTO) error
 	Login(req request.LoginRequestDTO) (string, error)
+	GetAllUsers() ([]models.User, error)
 }
 
 type userService struct {
@@ -66,4 +67,8 @@ func (s *userService) Login(req request.LoginRequestDTO) (string, error) {
 		return "", ErrInvalidCredentials
 	}
 	return s.jwtManager.GenerateJWT(user.ID)
+}
+
+func (s *userService) GetAllUsers() ([]models.User, error) {
+	return s.userRepo.GetAllUsers()
 }

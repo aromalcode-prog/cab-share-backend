@@ -22,6 +22,7 @@ func main() {
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Ride{},
+		&models.RideBooking{},
 	)
 	if err != nil {
 		panic(err)

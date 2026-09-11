@@ -61,3 +61,14 @@ func (h *UserHandler) Login(c *gin.Context) {
 		"token": token,
 	})
 }
+
+func (h *UserHandler) GetAllUsers(c *gin.Context) {
+	users, err := h.userService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+	}
+
+	c.JSON(http.StatusOK, users)
+}
