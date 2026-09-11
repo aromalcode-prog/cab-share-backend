@@ -5,6 +5,7 @@ import (
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/constants"
 	"github.com/aromalcode-prog/cab-share-backend/internal/dto/request"
+	"github.com/aromalcode-prog/cab-share-backend/internal/dto/response"
 	"github.com/aromalcode-prog/cab-share-backend/internal/services"
 	"github.com/gin-gonic/gin"
 )
@@ -40,4 +41,25 @@ func (h *RideHandler) CreateRide(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "ride created successfully"})
+}
+
+func (h *RideHandler) GetAvailableRides(c *gin.Context) {
+	rides, err := h.rideService.GetAvailableRides()
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	var rideResponses []response.RideResponseDTO
+
+	for _, ride := range rides {
+		rideResponses = append(
+			rideResponses,
+			response.FromRideModel(ride),
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"rides": rideResponses,
+	})
 }
