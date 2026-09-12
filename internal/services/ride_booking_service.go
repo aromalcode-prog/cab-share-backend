@@ -9,9 +9,21 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrBookingNotFound         = errors.New("booking not found")
+	ErrBookingNotOwned         = errors.New("booking does not belong to the passenger")
+	ErrBookingAlreadyCancelled = errors.New("booking has already been cancelled")
+	ErrInvalidSeatCount        = errors.New("at least one seat must be booked")
+	ErrRideNotFound            = errors.New("ride not found")
+	ErrRideNotActive           = errors.New("ride is not active")
+	ErrRideAlreadyBooked       = errors.New("passenger has already booked this ride")
+	ErrNotEnoughSeats          = repositories.ErrNotEnoughSeats
+)
+
 type RideBookingService interface {
 	BookRide(rideID uint, passengerID uint, seats uint) (*models.RideBooking, error)
 	GetMyBookings(passengerID uint) ([]models.RideBooking, error)
+	CancelBooking(bookingID uint, passengerID uint) (*models.RideBooking, error)
 }
 
 type rideBookingService struct {
@@ -30,13 +42,12 @@ func NewRideBookingService(db *gorm.DB, rideRepo repositories.RideRepository, ri
 
 func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint) (*models.RideBooking, error) {
 	if seats == 0 {
-		return nil, errors.New("at least one seat must be booked")
+		return nil, ErrInvalidSeatCount
 	}
 
 	var booking *models.RideBooking
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Use repositories connected to this transaction.
 		rideRepo := repositories.NewRideRepository(tx)
 		rideBookingRepo := repositories.NewRideBookingRepository(tx)
 
@@ -47,11 +58,11 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 		}
 
 		if ride == nil {
-			return errors.New("ride not found")
+			return ErrRideNotFound
 		}
 
 		if ride.Status != models.RideStatusActive {
-			return errors.New("ride is not active")
+			return ErrRideNotActive
 		}
 
 		// Check whether this passenger has already booked the ride.
@@ -64,12 +75,15 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 		}
 
 		if existingBooking != nil {
-			return errors.New("passenger has already booked this ride")
+			return ErrRideAlreadyBooked
 		}
 
 		// Atomically reserve the seats.
 		if err := rideRepo.ReserveSeats(rideID, seats); err != nil {
-			return err
+			if errors.Is(err, repositories.ErrNotEnoughSeats) {
+				return ErrNotEnoughSeats
+			}
+			return fmt.Errorf("failed to reserve seats: %w", err)
 		}
 
 		// Create the booking only after seats are successfully reserved.
@@ -77,6 +91,7 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 			RideID:      rideID,
 			PassengerID: passengerID,
 			SeatsBooked: seats,
+			Status:      models.BookingStatusActive,
 		}
 
 		if err := rideBookingRepo.Create(booking); err != nil {
@@ -95,4 +110,45 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 
 func (s *rideBookingService) GetMyBookings(passengerID uint) ([]models.RideBooking, error) {
 	return s.rideBookingRepo.FindByPassengerID(passengerID)
+}
+
+func (s *rideBookingService) CancelBooking(bookingID uint, passengerID uint) (*models.RideBooking, error) {
+	var booking *models.RideBooking
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		rideRepo := repositories.NewRideRepository(tx)
+		rideBookingRepo := repositories.NewRideBookingRepository(tx)
+
+		found, err := rideBookingRepo.FindByBookingID(bookingID)
+		if err != nil {
+			return fmt.Errorf("failed to find booking: %w", err)
+		}
+		if found == nil {
+			return ErrBookingNotFound
+		}
+		if found.PassengerID != passengerID {
+			return ErrBookingNotOwned
+		}
+		if found.Status == models.BookingStatusCancelled {
+			return ErrBookingAlreadyCancelled
+		}
+
+		if err := rideBookingRepo.MarkCancelled(found.ID, passengerID); err != nil {
+			return fmt.Errorf("failed to cancel booking: %w", err)
+		}
+
+		if err := rideRepo.RestoreSeats(found.RideID, found.SeatsBooked); err != nil {
+			return fmt.Errorf("failed to restore seats: %w", err)
+		}
+
+		found.Status = models.BookingStatusCancelled
+		booking = found
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return booking, nil
 }

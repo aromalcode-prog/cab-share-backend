@@ -8,11 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrNotEnoughSeats = errors.New("not enough available seats or ride unavailable")
+
 type RideRepository interface {
 	Create(ride *models.Ride) error
 	FindRideByID(rideID uint) (*models.Ride, error)
 	AvailableRides() ([]models.Ride, error)
 	ReserveSeats(rideID uint, seats uint) error
+	RestoreSeats(rideID uint, seats uint) error
 }
 
 type rideRepository struct {
@@ -73,7 +76,28 @@ func (r *rideRepository) ReserveSeats(rideID uint, seats uint) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return errors.New("not enough available seats or ride unavailable")
+		return ErrNotEnoughSeats
+	}
+
+	return nil
+}
+
+func (r *rideRepository) RestoreSeats(rideID uint, seats uint) error {
+	result := r.db.
+		Model(&models.Ride{}).
+		Where("id = ?", rideID).
+		Where("available_seats + ? <= total_seats", seats).
+		UpdateColumn(
+			"available_seats",
+			gorm.Expr("available_seats + ?", seats),
+		)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("failed to restore seats")
 	}
 
 	return nil
