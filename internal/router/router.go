@@ -32,6 +32,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	rideService := services.NewRideService(rideRepo)
 	rideHandler := handlers.NewRideHandler(rideService)
 	router.GET("/getrides", rideHandler.GetAvailableRides)
+	router.GET("/rides/search", rideHandler.SearchRides)
 	router.POST("/rides", authMiddleware.Authenticate(), rideHandler.CreateRide)
 
 	rideBookingRepository := repositories.NewRideBookingRepository(db)

@@ -11,15 +11,15 @@ const (
 )
 
 type Ride struct {
-	ID             uint
-	DriverID       uint
-	Source         string
-	Destination    string
-	DepartureTime  time.Time
-	TotalSeats     uint
-	AvailableSeats uint
-	PricePerSeat   int64
-	Status         RideStatus
+	ID             uint       `gorm:"primaryKey"`
+	DriverID       uint       `gorm:"not null"`
+	Source         string     `gorm:"not null"`
+	Destination    string     `gorm:"not null"`
+	DepartureTime  time.Time  `gorm:"not null"`
+	TotalSeats     uint       `gorm:"not null"`
+	AvailableSeats uint       `gorm:"not null"`
+	PricePerSeat   int64      `gorm:"not null"`
+	Status         RideStatus `gorm:"not null"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

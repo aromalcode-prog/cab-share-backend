@@ -13,6 +13,7 @@ type RideRepository interface {
 	Create(ride *models.Ride) error
 	FindRideByID(rideID uint) (*models.Ride, error)
 	AvailableRides() ([]models.Ride, error)
+	Search(source string, destination string) ([]models.Ride, error)
 	Update(ride *models.Ride) error
 }
 
@@ -27,6 +28,20 @@ func NewRideRepository(db *gorm.DB) RideRepository {
 func (r *rideRepository) AvailableRides() ([]models.Ride, error) {
 	var rides []models.Ride
 	result := r.db.
+		Where("status = ?", models.RideStatusActive).
+		Where("available_seats > ?", 0).
+		Where("departure_time > ?", time.Now()).
+		Order("departure_time ASC").
+		Find(&rides)
+
+	return rides, result.Error
+}
+
+func (r *rideRepository) Search(source string, destination string) ([]models.Ride, error) {
+	rides := []models.Ride{}
+	result := r.db.
+		Where("source = ?", source).
+		Where("destination = ?", destination).
 		Where("status = ?", models.RideStatusActive).
 		Where("available_seats > ?", 0).
 		Where("departure_time > ?", time.Now()).

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/constants"
@@ -34,7 +35,11 @@ func (h *RideHandler) CreateRide(c *gin.Context) {
 	}
 
 	if err := h.rideService.CreateRide(req, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		status := http.StatusInternalServerError
+		if errors.Is(err, services.ErrDepartureTimeInPast) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{
 			"error": err.Error(),
 		})
 		return
@@ -62,4 +67,29 @@ func (h *RideHandler) GetAvailableRides(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"rides": rideResponses,
 	})
+}
+
+func (h *RideHandler) SearchRides(c *gin.Context) {
+	var req request.SearchRideRequestDTO
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	rides, err := h.rideService.SearchRides(req)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, services.ErrSourceDestinationRequired) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	rideResponses := []response.RideResponseDTO{}
+	for _, ride := range rides {
+		rideResponses = append(rideResponses, response.FromRideModel(ride))
+	}
+
+	c.JSON(http.StatusOK, rideResponses)
 }
