@@ -12,6 +12,7 @@ import (
 type RideRepository interface {
 	Create(ride *models.Ride) error
 	FindRideByID(rideID uint) (*models.Ride, error)
+	FindRideByIDWithLock(rideID uint) (*models.Ride, error)
 	AvailableRides() ([]models.Ride, error)
 	Search(source string, destination string) ([]models.Ride, error)
 	Update(ride *models.Ride) error
@@ -57,6 +58,24 @@ func (r *rideRepository) Create(ride *models.Ride) error {
 }
 
 func (r *rideRepository) FindRideByID(rideID uint) (*models.Ride, error) {
+	ride := &models.Ride{}
+
+	result := r.db.
+		Where("id = ?", rideID).
+		First(ride)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return ride, nil
+}
+
+func (r *rideRepository) FindRideByIDWithLock(rideID uint) (*models.Ride, error) {
 	ride := &models.Ride{}
 
 	result := r.db.

@@ -17,6 +17,7 @@ var (
 
 type RideService interface {
 	CreateRide(req request.CreateRideRequestDTO, driverID uint) error
+	GetRideByID(rideID uint) (*models.Ride, error)
 	GetAvailableRides() ([]models.Ride, error)
 	SearchRides(req request.SearchRideRequestDTO) ([]models.Ride, error)
 }
@@ -47,6 +48,17 @@ func (s *rideService) CreateRide(req request.CreateRideRequestDTO, driverID uint
 		UpdatedAt:      time.Now(),
 	}
 	return s.rideRepo.Create(ride)
+}
+
+func (s *rideService) GetRideByID(rideID uint) (*models.Ride, error) {
+	ride, err := s.rideRepo.FindRideByID(rideID)
+	if err != nil {
+		return nil, err
+	}
+	if ride == nil {
+		return nil, ErrRideNotFound
+	}
+	return ride, nil
 }
 
 func (s *rideService) GetAvailableRides() ([]models.Ride, error) {

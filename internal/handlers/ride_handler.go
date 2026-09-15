@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/constants"
 	"github.com/aromalcode-prog/cab-share-backend/internal/dto/request"
@@ -46,6 +47,26 @@ func (h *RideHandler) CreateRide(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "ride created successfully"})
+}
+
+func (h *RideHandler) GetRideByID(c *gin.Context) {
+	rideID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ride ID"})
+		return
+	}
+
+	ride, err := h.rideService.GetRideByID(uint(rideID))
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, services.ErrRideNotFound) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response.FromRideModel(*ride))
 }
 
 func (h *RideHandler) GetAvailableRides(c *gin.Context) {

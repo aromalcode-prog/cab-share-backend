@@ -51,8 +51,8 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 		rideRepo := repositories.NewRideRepository(tx)
 		rideBookingRepo := repositories.NewRideBookingRepository(tx)
 
-		// Fetch the ride.
-		ride, err := rideRepo.FindRideByID(rideID)
+		// Fetch the ride with lock
+		ride, err := rideRepo.FindRideByIDWithLock(rideID)
 		if err != nil {
 			return fmt.Errorf("failed to find ride: %w", err)
 		}
@@ -65,7 +65,7 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 			return ErrRideNotActive
 		}
 
-		// Check whether this passenger has already booked the ride.
+		// Check whether this passenger has already booked the ride
 		existingBooking, err := rideBookingRepo.FindByRideAndPassenger(
 			rideID,
 			passengerID,
@@ -119,21 +119,21 @@ func (s *rideBookingService) CancelBooking(bookingID uint, passengerID uint) (*m
 		rideRepo := repositories.NewRideRepository(tx)
 		rideBookingRepo := repositories.NewRideBookingRepository(tx)
 
-		found, err := rideBookingRepo.FindByBookingID(bookingID)
+		currentBooking, err := rideBookingRepo.FindByBookingID(bookingID)
 		if err != nil {
 			return fmt.Errorf("failed to find booking: %w", err)
 		}
-		if found == nil {
+		if currentBooking == nil {
 			return ErrBookingNotFound
 		}
-		if found.PassengerID != passengerID {
+		if currentBooking.PassengerID != passengerID {
 			return ErrBookingNotOwned
 		}
-		if found.Status == models.BookingStatusCancelled {
+		if currentBooking.Status == models.BookingStatusCancelled {
 			return ErrBookingAlreadyCancelled
 		}
 
-		ride, err := rideRepo.FindRideByID(found.RideID)
+		ride, err := rideRepo.FindRideByIDWithLock(currentBooking.RideID)
 		if err != nil {
 			return fmt.Errorf("failed to find ride: %w", err)
 		}
@@ -141,7 +141,7 @@ func (s *rideBookingService) CancelBooking(bookingID uint, passengerID uint) (*m
 			return ErrRideNotFound
 		}
 
-		restoredSeats := ride.AvailableSeats + found.SeatsBooked
+		restoredSeats := ride.AvailableSeats + currentBooking.SeatsBooked
 		if restoredSeats > ride.TotalSeats {
 			return fmt.Errorf("failed to restore seats")
 		}
@@ -151,12 +151,12 @@ func (s *rideBookingService) CancelBooking(bookingID uint, passengerID uint) (*m
 			return fmt.Errorf("failed to update ride: %w", err)
 		}
 
-		found.Status = models.BookingStatusCancelled
-		if err := rideBookingRepo.Update(found); err != nil {
+		currentBooking.Status = models.BookingStatusCancelled
+		if err := rideBookingRepo.Update(currentBooking); err != nil {
 			return fmt.Errorf("failed to update booking: %w", err)
 		}
 
-		booking = found
+		booking = currentBooking
 		return nil
 	})
 
