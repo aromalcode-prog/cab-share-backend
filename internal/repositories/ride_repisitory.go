@@ -6,16 +6,14 @@ import (
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
-
-var ErrNotEnoughSeats = errors.New("not enough available seats or ride unavailable")
 
 type RideRepository interface {
 	Create(ride *models.Ride) error
 	FindRideByID(rideID uint) (*models.Ride, error)
 	AvailableRides() ([]models.Ride, error)
-	ReserveSeats(rideID uint, seats uint) error
-	RestoreSeats(rideID uint, seats uint) error
+	Update(ride *models.Ride) error
 }
 
 type rideRepository struct {
@@ -46,7 +44,9 @@ func (r *rideRepository) Create(ride *models.Ride) error {
 func (r *rideRepository) FindRideByID(rideID uint) (*models.Ride, error) {
 	ride := &models.Ride{}
 
-	result := r.db.Where("id = ?", rideID).
+	result := r.db.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", rideID).
 		First(ride)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -60,45 +60,7 @@ func (r *rideRepository) FindRideByID(rideID uint) (*models.Ride, error) {
 	return ride, nil
 }
 
-func (r *rideRepository) ReserveSeats(rideID uint, seats uint) error {
-	result := r.db.
-		Model(&models.Ride{}).
-		Where("id = ?", rideID).
-		Where("status = ?", models.RideStatusActive).
-		Where("available_seats >= ?", seats).
-		UpdateColumn(
-			"available_seats",
-			gorm.Expr("available_seats - ?", seats),
-		)
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return ErrNotEnoughSeats
-	}
-
-	return nil
-}
-
-func (r *rideRepository) RestoreSeats(rideID uint, seats uint) error {
-	result := r.db.
-		Model(&models.Ride{}).
-		Where("id = ?", rideID).
-		Where("available_seats + ? <= total_seats", seats).
-		UpdateColumn(
-			"available_seats",
-			gorm.Expr("available_seats + ?", seats),
-		)
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return errors.New("failed to restore seats")
-	}
-
-	return nil
+func (r *rideRepository) Update(ride *models.Ride) error {
+	result := r.db.Save(ride)
+	return result.Error
 }

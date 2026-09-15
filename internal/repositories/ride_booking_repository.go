@@ -5,6 +5,7 @@ import (
 
 	"github.com/aromalcode-prog/cab-share-backend/internal/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type RideBookingRepository interface {
@@ -12,7 +13,7 @@ type RideBookingRepository interface {
 	FindByBookingID(bookingID uint) (*models.RideBooking, error)
 	FindByRideAndPassenger(rideID uint, passengerID uint) (*models.RideBooking, error)
 	FindByPassengerID(passengerID uint) ([]models.RideBooking, error)
-	MarkCancelled(bookingID uint, passengerID uint) error
+	Update(booking *models.RideBooking) error
 }
 
 type rideBookingRepository struct {
@@ -31,6 +32,7 @@ func (r *rideBookingRepository) Create(booking *models.RideBooking) error {
 func (r *rideBookingRepository) FindByBookingID(bookingID uint) (*models.RideBooking, error) {
 	booking := &models.RideBooking{}
 	result := r.db.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id = ?", bookingID).
 		First(booking)
 
@@ -43,21 +45,8 @@ func (r *rideBookingRepository) FindByBookingID(bookingID uint) (*models.RideBoo
 	return booking, nil
 }
 
-func (r *rideBookingRepository) MarkCancelled(bookingID uint, passengerID uint) error {
-	result := r.db.
-		Model(&models.RideBooking{}).
-		Where("id = ?", bookingID).
-		Where("passenger_id = ?", passengerID).
-		Where("status = ?", models.BookingStatusActive).
-		UpdateColumn("status", models.BookingStatusCancelled)
-
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("booking is not active")
-	}
-	return nil
+func (r *rideBookingRepository) Update(booking *models.RideBooking) error {
+	return r.db.Save(booking).Error
 }
 
 func (r *rideBookingRepository) FindByRideAndPassenger(rideID uint, passengerID uint) (*models.RideBooking, error) {

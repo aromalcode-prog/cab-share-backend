@@ -17,7 +17,7 @@ var (
 	ErrRideNotFound            = errors.New("ride not found")
 	ErrRideNotActive           = errors.New("ride is not active")
 	ErrRideAlreadyBooked       = errors.New("passenger has already booked this ride")
-	ErrNotEnoughSeats          = repositories.ErrNotEnoughSeats
+	ErrNotEnoughSeats          = errors.New("not enough available seats or ride unavailable")
 )
 
 type RideBookingService interface {
@@ -78,15 +78,15 @@ func (s *rideBookingService) BookRide(rideID uint, passengerID uint, seats uint)
 			return ErrRideAlreadyBooked
 		}
 
-		// Atomically reserve the seats.
-		if err := rideRepo.ReserveSeats(rideID, seats); err != nil {
-			if errors.Is(err, repositories.ErrNotEnoughSeats) {
-				return ErrNotEnoughSeats
-			}
-			return fmt.Errorf("failed to reserve seats: %w", err)
+		if ride.AvailableSeats < seats {
+			return ErrNotEnoughSeats
 		}
 
-		// Create the booking only after seats are successfully reserved.
+		ride.AvailableSeats -= seats
+		if err := rideRepo.Update(ride); err != nil {
+			return fmt.Errorf("failed to update ride: %w", err)
+		}
+
 		booking = &models.RideBooking{
 			RideID:      rideID,
 			PassengerID: passengerID,
@@ -133,15 +133,29 @@ func (s *rideBookingService) CancelBooking(bookingID uint, passengerID uint) (*m
 			return ErrBookingAlreadyCancelled
 		}
 
-		if err := rideBookingRepo.MarkCancelled(found.ID, passengerID); err != nil {
-			return fmt.Errorf("failed to cancel booking: %w", err)
+		ride, err := rideRepo.FindRideByID(found.RideID)
+		if err != nil {
+			return fmt.Errorf("failed to find ride: %w", err)
+		}
+		if ride == nil {
+			return ErrRideNotFound
 		}
 
-		if err := rideRepo.RestoreSeats(found.RideID, found.SeatsBooked); err != nil {
-			return fmt.Errorf("failed to restore seats: %w", err)
+		restoredSeats := ride.AvailableSeats + found.SeatsBooked
+		if restoredSeats > ride.TotalSeats {
+			return fmt.Errorf("failed to restore seats")
+		}
+
+		ride.AvailableSeats = restoredSeats
+		if err := rideRepo.Update(ride); err != nil {
+			return fmt.Errorf("failed to update ride: %w", err)
 		}
 
 		found.Status = models.BookingStatusCancelled
+		if err := rideBookingRepo.Update(found); err != nil {
+			return fmt.Errorf("failed to update booking: %w", err)
+		}
+
 		booking = found
 		return nil
 	})

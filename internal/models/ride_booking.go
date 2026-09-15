@@ -11,8 +11,8 @@ const (
 
 type RideBooking struct {
 	ID          uint          `gorm:"primaryKey"`
-	RideID      uint          `gorm:"not null;uniqueIndex:idx_ride_passenger"`
-	PassengerID uint          `gorm:"not null;uniqueIndex:idx_ride_passenger"`
+	RideID      uint          `gorm:"not null;index"`
+	PassengerID uint          `gorm:"not null;index"`
 	SeatsBooked uint          `gorm:"not null;default:1"`
 	Status      BookingStatus `gorm:"not null;default:active"`
 	CreatedAt   time.Time
